@@ -23,6 +23,13 @@ protected:
     void end_atomic() { Thread::unlock(); }
 
     void sleep() { Thread::yield(); } // implicit unlock()
+    /*
+	 *@param time time the thread is supposed to sleep for in SECONDS
+	*/
+	void sleep(const double& time)
+	{
+		Alarm(time*1e6, &(this->wakeup()),1); //is that correct?
+	}
     void wakeup() { end_atomic(); }
     void wakeup_all() { end_atomic(); }
 };

@@ -114,6 +114,7 @@ private:
     static Thread * volatile _running;
     static Queue _ready;
     static Queue _suspended;
+	Simple_List<Thread> _joinedBy; //List of threads that joined this thread
 };
 
 

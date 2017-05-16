@@ -73,8 +73,8 @@ int Thread::join()
 
     db<Thread>(TRC) << "Thread::join(this=" << this << ",state=" << _state << ")" << endl;
 
-    while(_state != FINISHING)
-        yield(); // implicit unlock()
+    _joinedBy.insert(this); //is it correct to add the pointer directly?
+	suspend();
 
     unlock();
 
@@ -193,6 +193,11 @@ void Thread::exit(int status)
             CPU::halt();
         }
     }
+	//wake up all threads that joined this one
+	for(auto it = _joinedBy.begin(); it != _joinedBy.end(); it++;) {
+		*it.resume();
+		_joinedBy.remove(*it);
+	}
 
     unlock();
 }
