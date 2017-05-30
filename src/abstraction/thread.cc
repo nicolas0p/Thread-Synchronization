@@ -73,8 +73,8 @@ int Thread::join()
 
     db<Thread>(TRC) << "Thread::join(this=" << this << ",state=" << _state << ")" << endl;
 
-    _joinedBy.insert(this); //is it correct to add the pointer directly?
-	suspend();
+    _joinedBy.insert(&Thread::running()->_link);
+	wait();
 
     unlock();
 
