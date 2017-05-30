@@ -22,16 +22,33 @@ protected:
     void begin_atomic() { Thread::lock(); }
     void end_atomic() { Thread::unlock(); }
 
-    void sleep() { Thread::yield(); } // implicit unlock()
-    /*
-	 *@param time time the thread is supposed to sleep for in SECONDS
-	*/
-	void sleep(const double& time)
-	{
-		Alarm(time*1e6, &(this->wakeup()),1); //is that correct?
-	}
-    void wakeup() { end_atomic(); }
-    void wakeup_all() { end_atomic(); }
+    void sleep()
+    {
+        begin_atomic();
+        _waiting.insert(&Thread::running()->_link);
+        end_atomic();
+
+        Thread::running()->suspend();
+    }
+
+    void wakeup()
+    {
+        begin_atomic();
+        _waiting.remove()->object()->resume();
+        end_atomic();
+    }
+
+    void wakeup_all()
+    {
+        begin_atomic();
+        while(!_waiting.empty()) }
+            _waiting.remove()->object()->resume();
+        }
+        end_atomic();
+    }
+
+private:
+    Thread::Queue _waiting; //thread waiting for this lock
 };
 
 __END_SYS

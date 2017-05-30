@@ -133,12 +133,35 @@ void Thread::resume()
     db<Thread>(TRC) << "Thread::resume(this=" << this << ")" << endl;
 
    _suspended.remove(this);
+   _waiting.remove(this);
    _state = READY;
    _ready.insert(&_link);
 
    unlock();
 }
 
+void Thread::wait()
+{
+    lock();
+
+    db<Thread>(TRC) << "Thread::wait(this=" << this << ")" << endl;
+
+    if(_running != this)
+        _ready.remove(this);
+
+    _state = WAITING;
+    _waiting.insert(&_link);
+
+    if((_running == this) && !_ready.empty()) {
+        _running = _ready.remove()->object();
+        _running->_state = RUNNING;
+
+        dispatch(this, _running);
+    } else
+        idle(); // implicit unlock()
+
+    unlock();
+}
 
 // Class methods
 void Thread::yield()
@@ -194,9 +217,8 @@ void Thread::exit(int status)
         }
     }
 	//wake up all threads that joined this one
-	for(auto it = _joinedBy.begin(); it != _joinedBy.end(); it++;) {
-		*it.resume();
-		_joinedBy.remove(*it);
+	while(!_joinedBy.empty()) {
+		_joinedBy.remove()->object()->resume();
 	}
 
     unlock();

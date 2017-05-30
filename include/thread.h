@@ -77,6 +77,7 @@ public:
     void pass();
     void suspend();
     void resume();
+    void wait();
 
     static Thread * volatile self() { return running(); }
     static void yield();
@@ -114,7 +115,8 @@ private:
     static Thread * volatile _running;
     static Queue _ready;
     static Queue _suspended;
-	Simple_List<Thread> _joinedBy; //List of threads that joined this thread
+    static Queue _waiting;
+	Queue _joinedBy; //List of threads that joined this thread
 };
 
 
