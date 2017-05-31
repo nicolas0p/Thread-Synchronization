@@ -23,6 +23,8 @@ int philosopher(int n, int l, int c)
     int first = (n < 4)? n : 0;
     int second = (n < 4)? n + 1 : 4;
 
+    Delay delay(2000000);
+    
     for(int i = iterations; i > 0; i--) {
 
         table.p();
@@ -69,8 +71,6 @@ int main()
     phil[2] = new Thread(&philosopher, 2, 16, 39);
     phil[3] = new Thread(&philosopher, 3, 16, 24);
     phil[4] = new Thread(&philosopher, 4, 10, 20);
-
-    Delay delay(2000000);
 
     cout << "Philosophers are alive and hungry!" << endl;
 
