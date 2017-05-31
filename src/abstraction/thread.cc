@@ -61,6 +61,7 @@ Thread::~Thread()
 
     _ready.remove(this);
     _suspended.remove(this);
+    _waiting.remove(this);
 
     unlock();
 
