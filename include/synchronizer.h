@@ -12,6 +12,10 @@ class Synchronizer_Common
 {
 protected:
     Synchronizer_Common() {}
+    ~Synchronizer_Common()
+    {
+        wakeup_all();
+    }
 
     // Atomic operations
     bool tsl(volatile bool & lock) { return CPU::tsl(lock); }
