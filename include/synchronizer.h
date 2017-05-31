@@ -28,7 +28,7 @@ protected:
         _waiting.insert(&Thread::running()->_link);
         end_atomic();
 
-        Thread::running()->suspend();
+        Thread::running()->wait();
     }
 
     void wakeup()
