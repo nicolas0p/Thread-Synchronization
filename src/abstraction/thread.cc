@@ -195,7 +195,7 @@ void Thread::exit(int status)
     db<Thread>(TRC) << "Thread::exit(status=" << status << ") [running=" << running() << "]" << endl;
 
     //wake up all threads that joined this one
-	while(_running->_joinedBy.empty()) {
+	while(!_running->_joinedBy.empty()) {
 		_running->_joinedBy.remove()->object()->resume();
 	}
 
