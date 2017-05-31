@@ -63,6 +63,11 @@ Thread::~Thread()
     _suspended.remove(this);
     _waiting.remove(this);
 
+	//wake up all threads that joined this one
+	while(!_running->_joinedBy.empty()) {
+		_running->_joinedBy.remove()->object()->resume();
+	}
+
     unlock();
 
     kfree(_stack);
