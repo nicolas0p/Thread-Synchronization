@@ -17,6 +17,7 @@ Scheduler_Timer * Thread::_timer;
 Thread* volatile Thread::_running;
 Thread::Queue Thread::_ready;
 Thread::Queue Thread::_suspended;
+Thread::Queue Thread::_waiting;
 
 // Methods
 void Thread::constructor_prolog(unsigned int stack_size)
@@ -192,6 +193,11 @@ void Thread::exit(int status)
 
     db<Thread>(TRC) << "Thread::exit(status=" << status << ") [running=" << running() << "]" << endl;
 
+    //wake up all threads that joined this one
+	while(_running->_joinedBy.empty()) {
+		_running->_joinedBy.remove()->object()->resume();
+	}
+
     while(_ready.empty() && !_suspended.empty())
         idle(); // implicit unlock();
 
@@ -216,10 +222,6 @@ void Thread::exit(int status)
             CPU::halt();
         }
     }
-	//wake up all threads that joined this one
-	while(!_joinedBy.empty()) {
-		_joinedBy.remove()->object()->resume();
-	}
 
     unlock();
 }

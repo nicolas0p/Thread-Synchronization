@@ -41,7 +41,7 @@ protected:
     void wakeup_all()
     {
         begin_atomic();
-        while(!_waiting.empty()) }
+        while(!_waiting.empty()) {
             _waiting.remove()->object()->resume();
         }
         end_atomic();
@@ -54,4 +54,3 @@ private:
 __END_SYS
 
 #endif
-
