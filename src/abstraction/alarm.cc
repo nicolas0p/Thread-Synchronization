@@ -52,9 +52,13 @@ void Alarm::delay(const Microsecond & time)
 {
     db<Alarm>(TRC) << "Alarm::delay(time=" << time << ")" << endl;
 
-    Tick t = _elapsed + ticks(time);
+    Semaphore s(0);
+    Alarm(time, &(Semaphore::V_Handler(s)), 1);
+    s.p();
 
-    while(_elapsed < t);
+    // Tick t = _elapsed + ticks(time);
+
+    // while(_elapsed < t);
 }
 
 

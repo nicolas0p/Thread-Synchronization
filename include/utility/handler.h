@@ -7,7 +7,16 @@
 
 __BEGIN_UTIL
 
-typedef void (Handler)();
+//typedef void (Handler)();
+class Handler
+{
+    void (*func)();
+public:
+    Handler() {}
+    Handler() : func(func) {}
+
+    virtual void operator()(){ (*func)() };
+};
 
 __END_UTIL
 
