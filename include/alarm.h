@@ -31,6 +31,7 @@ public:
     
 public:
     Alarm(const Microsecond & time, Handler * handler, int times = 1);
+    Alarm(const Microsecond & time, Semaphore * semaphore, int times = 1);
     ~Alarm();
 
     static Hertz frequency() { return _timer->frequency(); }
@@ -59,6 +60,7 @@ private:
 private:
     Tick _ticks;
     Handler * _handler;
+    Semaphore * _semaphore;
     int _times; 
     Queue::Element _link;
 
