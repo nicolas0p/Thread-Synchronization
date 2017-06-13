@@ -267,14 +267,15 @@ void Thread::dispatch(Thread * prev, Thread * next)
 
 int Thread::idle()
 {
-    db<Thread>(TRC) << "Thread::idle()" << endl;
+    while(true){
+        db<Thread>(TRC) << "Thread::idle()" << endl;
 
-    db<Thread>(INF) << "There are no runnable threads at the moment!" << endl;
-    db<Thread>(INF) << "Halting the CPU ..." << endl;
+        db<Thread>(INF) << "There are no runnable threads at the moment!" << endl;
+        db<Thread>(INF) << "Halting the CPU ..." << endl;
 
-    CPU::int_enable();
-    CPU::halt();
-
+        CPU::int_enable();
+        CPU::halt();
+    }
     return 0;
 }
 

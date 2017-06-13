@@ -17,6 +17,12 @@ void Thread::init()
     // neither by IDLE (which has a lower priority)
     if(preemptive)
         _timer = new (kmalloc(sizeof(Scheduler_Timer))) Scheduler_Timer(QUANTUM, time_slicer);
+
+    // Puts an idling thread on the ready queue.
+    // Its execution will never end, therefore doesnt ever need to be replaced.
+    // Its priority is lower than any other thread, therefore will only
+    // run if no other thread is present.
+    new Thread(Thread::Configuration(Thread::READY, Thread::IDLE), &Thread::idle);
 }
 
 __END_SYS
