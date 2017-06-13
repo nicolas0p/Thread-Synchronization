@@ -123,13 +123,12 @@ void Thread::suspend()
     _state = SUSPENDED;
     _suspended.insert(&_link);
 
-    if((_running == this) && !_ready.empty()) {
+    if(_running == this) {
         _running = _ready.remove()->object();
         _running->_state = RUNNING;
 
         dispatch(this, _running);
-    } else
-        idle(); // implicit unlock()
+    }
 
     unlock();
 }
@@ -161,13 +160,12 @@ void Thread::wait()
     _state = WAITING;
     _waiting.insert(&_link);
 
-    if((_running == this) && !_ready.empty()) {
+    if(_running == this) {
         _running = _ready.remove()->object();
         _running->_state = RUNNING;
 
         dispatch(this, _running);
-    } else
-        idle(); // implicit unlock()
+    }
 
     unlock();
 }
@@ -179,17 +177,14 @@ void Thread::yield()
 
     db<Thread>(TRC) << "Thread::yield(running=" << _running << ")" << endl;
 
-    if(!_ready.empty()) {
-        Thread * prev = _running;
-        prev->_state = READY;
-        _ready.insert(&prev->_link);
+    Thread * prev = _running;
+    prev->_state = READY;
+    _ready.insert(&prev->_link);
 
-        _running = _ready.remove()->object();
-        _running->_state = RUNNING;
+    _running = _ready.remove()->object();
+    _running->_state = RUNNING;
 
-        dispatch(prev, _running);
-    } else
-        idle();
+    dispatch(prev, _running);
 
     unlock();
 }
@@ -206,12 +201,9 @@ void Thread::exit(int status)
 		_running->_joinedBy.remove()->object()->resume();
 	}
 
-    while(_ready.empty() && !_suspended.empty())
-        idle(); // implicit unlock();
-
     lock();
 
-    if(!_ready.empty()) {
+    if((_ready.size() > 1) || !_suspended.empty()) {
         Thread * prev = _running;
         prev->_state = FINISHING;
         *reinterpret_cast<int *>(prev->_stack) = status;
