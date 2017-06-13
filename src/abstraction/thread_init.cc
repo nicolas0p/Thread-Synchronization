@@ -22,7 +22,7 @@ void Thread::init()
     // Its execution will never end, therefore doesnt ever need to be replaced.
     // Its priority is lower than any other thread, therefore will only
     // run if no other thread is present.
-    new Thread(Thread::Configuration(Thread::READY, Thread::IDLE), &Thread::idle);
+    new (kmalloc(sizeof(Thread))) Thread(Thread::Configuration(Thread::READY, Thread::IDLE), &Thread::idle);
 }
 
 __END_SYS
