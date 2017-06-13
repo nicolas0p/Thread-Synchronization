@@ -201,8 +201,6 @@ void Thread::exit(int status)
 		_running->_joinedBy.remove()->object()->resume();
 	}
 
-    lock();
-
     if((_ready.size() > 1) || !_suspended.empty()) {
         Thread * prev = _running;
         prev->_state = FINISHING;
