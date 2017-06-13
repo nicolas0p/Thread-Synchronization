@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include <alarm.h>
 #include <display.h>
+#include <thread.h>
 
 __BEGIN_SYS
 
@@ -26,6 +27,9 @@ Alarm::Alarm(const Microsecond & time, Handler * handler, int times)
         unlock();
     } else {
         unlock();
+        // in this case it shouldn't create a new thread to execute.
+        // it will execute the handler in the same thread that called
+        // for the setup of the alarm.
         (*handler)();
     }
 }
@@ -77,7 +81,7 @@ void Alarm::handler(const IC::Interrupt_Id & i)
     if(!next_tick) {
         if(next_handler) {
             db<Alarm>(TRC) << "Alarm::handler(h=" << reinterpret_cast<void *>(next_handler) << ")" << endl;
-            (*next_handler)();
+            create_handler_thread(next_handler);
         }
         if(_request.empty())
             next_handler = 0;
@@ -96,6 +100,10 @@ void Alarm::handler(const IC::Interrupt_Id & i)
     }
 
     unlock();
+}
+
+void Alarm::create_handler_thread(Handler * handler){
+    new (kmalloc(sizeof(Thread))) Thread(Thread::Configuration(Thread::READY, Thread::HIGH), &wrap_handler, handler);
 }
 
 __END_SYS

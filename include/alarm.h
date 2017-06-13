@@ -53,6 +53,9 @@ private:
 
     static void handler(const IC::Interrupt_Id & i);
 
+    static int wrap_handler(Handler * handler) { (*handler)(); return 0; }
+    static void create_handler_thread(Handler * handler);
+
 private:
     Tick _ticks;
     Handler * _handler;
