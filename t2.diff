@@ -1,0 +1,260 @@
+diff --git a/include/alarm.h b/include/alarm.h
+index 24b78e9..4ddd820 100644
+--- a/include/alarm.h
++++ b/include/alarm.h
+@@ -31,6 +31,7 @@ public:
+     
+ public:
+     Alarm(const Microsecond & time, Handler * handler, int times = 1);
++    Alarm(const Microsecond & time, Semaphore * semaphore, int times = 1);
+     ~Alarm();
+ 
+     static Hertz frequency() { return _timer->frequency(); }
+@@ -53,9 +54,13 @@ private:
+ 
+     static void handler(const IC::Interrupt_Id & i);
+ 
++    static int wrap_handler(Handler * handler) { (*handler)(); return 0; }
++    static void create_handler_thread(Handler * handler);
++
+ private:
+     Tick _ticks;
+     Handler * _handler;
++    Semaphore * _semaphore;
+     int _times; 
+     Queue::Element _link;
+ 
+diff --git a/include/thread.h b/include/thread.h
+index 4ecec15..ba58198 100644
+--- a/include/thread.h
++++ b/include/thread.h
+@@ -45,7 +45,8 @@ public:
+     enum {
+         HIGH = 0,
+         NORMAL = 15,
+-        LOW = 31
++        LOW = 31,
++        IDLE = 2147483647
+     };
+ 
+     // Thread Configuration
+diff --git a/src/abstraction/alarm.cc b/src/abstraction/alarm.cc
+index ec8b9ce..d0f1208 100644
+--- a/src/abstraction/alarm.cc
++++ b/src/abstraction/alarm.cc
+@@ -3,6 +3,7 @@
+ #include <semaphore.h>
+ #include <alarm.h>
+ #include <display.h>
++#include <thread.h>
+ 
+ __BEGIN_SYS
+ 
+@@ -14,7 +15,7 @@ Alarm::Queue Alarm::_request;
+ 
+ // Methods
+ Alarm::Alarm(const Microsecond & time, Handler * handler, int times)
+-: _ticks(ticks(time)), _handler(handler), _times(times), _link(this, _ticks)
++: _ticks(ticks(time)), _handler(handler), _semaphore(0), _times(times), _link(this, _ticks)
+ {
+     lock();
+ 
+@@ -26,10 +27,30 @@ Alarm::Alarm(const Microsecond & time, Handler * handler, int times)
+         unlock();
+     } else {
+         unlock();
++        // in this case it shouldn't create a new thread to execute.
++        // it will execute the handler in the same thread that called
++        // for the setup of the alarm.
+         (*handler)();
+     }
+ }
+ 
++Alarm::Alarm(const Microsecond & time, Semaphore * semaphore, int times)
++: _ticks(ticks(time)), _handler(0), _semaphore(semaphore), _times(times), _link(this, _ticks)
++{
++    lock();
++
++    // db<Alarm>(TRC) << "Alarm(t=" << time << ",tk=" << _ticks << ",h=" << reinterpret_cast<void *>(handler)
++    //                << ",x=" << times << ") => " << this << endl;
++
++    if(_ticks) {
++        _request.insert(&_link);
++        unlock();
++    } else {
++        unlock();
++        semaphore->v();
++    }
++}
++
+ 
+ Alarm::~Alarm()
+ {
+@@ -48,9 +69,9 @@ void Alarm::delay(const Microsecond & time)
+ {
+     db<Alarm>(TRC) << "Alarm::delay(time=" << time << ")" << endl;
+ 
+-    Tick t = _elapsed + ticks(time);
+-
+-    while(_elapsed < t);
++    Semaphore s(0);
++    Alarm(time, &s, 1);
++    s.p();
+ }
+ 
+ 
+@@ -58,6 +79,7 @@ void Alarm::handler(const IC::Interrupt_Id & i)
+ {
+     static Tick next_tick;
+     static Handler * next_handler;
++    static Semaphore * next_semaphore;
+ 
+     lock();
+ 
+@@ -77,15 +99,21 @@ void Alarm::handler(const IC::Interrupt_Id & i)
+     if(!next_tick) {
+         if(next_handler) {
+             db<Alarm>(TRC) << "Alarm::handler(h=" << reinterpret_cast<void *>(next_handler) << ")" << endl;
+-            (*next_handler)();
++            create_handler_thread(next_handler);
++        } else if(next_semaphore) {
++            // db<Alarm>(TRC) << "Alarm::handler(h=" << reinterpret_cast<void *>(next_handler) << ")" << endl;
++            next_semaphore->v();
+         }
+-        if(_request.empty())
++
++        if(_request.empty()){
+             next_handler = 0;
+-        else {
++            next_semaphore = 0;
++        } else {
+             Queue::Element * e = _request.remove();
+             Alarm * alarm = e->object();
+             next_tick = alarm->_ticks;
+             next_handler = alarm->_handler;
++            next_semaphore = alarm->_semaphore;
+             if(alarm->_times != -1)
+                 alarm->_times--;
+             if(alarm->_times) {
+@@ -98,4 +126,8 @@ void Alarm::handler(const IC::Interrupt_Id & i)
+     unlock();
+ }
+ 
++void Alarm::create_handler_thread(Handler * handler){
++    new (kmalloc(sizeof(Thread))) Thread(Thread::Configuration(Thread::READY, Thread::HIGH), &wrap_handler, handler);
++}
++
+ __END_SYS
+diff --git a/src/abstraction/thread.cc b/src/abstraction/thread.cc
+index 854b0ff..7fd68a2 100644
+--- a/src/abstraction/thread.cc
++++ b/src/abstraction/thread.cc
+@@ -123,13 +123,12 @@ void Thread::suspend()
+     _state = SUSPENDED;
+     _suspended.insert(&_link);
+ 
+-    if((_running == this) && !_ready.empty()) {
++    if(_running == this) {
+         _running = _ready.remove()->object();
+         _running->_state = RUNNING;
+ 
+         dispatch(this, _running);
+-    } else
+-        idle(); // implicit unlock()
++    }
+ 
+     unlock();
+ }
+@@ -161,13 +160,12 @@ void Thread::wait()
+     _state = WAITING;
+     _waiting.insert(&_link);
+ 
+-    if((_running == this) && !_ready.empty()) {
++    if(_running == this) {
+         _running = _ready.remove()->object();
+         _running->_state = RUNNING;
+ 
+         dispatch(this, _running);
+-    } else
+-        idle(); // implicit unlock()
++    }
+ 
+     unlock();
+ }
+@@ -179,17 +177,14 @@ void Thread::yield()
+ 
+     db<Thread>(TRC) << "Thread::yield(running=" << _running << ")" << endl;
+ 
+-    if(!_ready.empty()) {
+-        Thread * prev = _running;
+-        prev->_state = READY;
+-        _ready.insert(&prev->_link);
++    Thread * prev = _running;
++    prev->_state = READY;
++    _ready.insert(&prev->_link);
+ 
+-        _running = _ready.remove()->object();
+-        _running->_state = RUNNING;
++    _running = _ready.remove()->object();
++    _running->_state = RUNNING;
+ 
+-        dispatch(prev, _running);
+-    } else
+-        idle();
++    dispatch(prev, _running);
+ 
+     unlock();
+ }
+@@ -206,12 +201,7 @@ void Thread::exit(int status)
+ 		_running->_joinedBy.remove()->object()->resume();
+ 	}
+ 
+-    while(_ready.empty() && !_suspended.empty())
+-        idle(); // implicit unlock();
+-
+-    lock();
+-
+-    if(!_ready.empty()) {
++    if((_ready.size() > 1) || !_suspended.empty()) {
+         Thread * prev = _running;
+         prev->_state = FINISHING;
+         *reinterpret_cast<int *>(prev->_stack) = status;
+@@ -267,14 +257,15 @@ void Thread::dispatch(Thread * prev, Thread * next)
+ 
+ int Thread::idle()
+ {
+-    db<Thread>(TRC) << "Thread::idle()" << endl;
+-
+-    db<Thread>(INF) << "There are no runnable threads at the moment!" << endl;
+-    db<Thread>(INF) << "Halting the CPU ..." << endl;
++    while(true){
++        db<Thread>(TRC) << "Thread::idle()" << endl;
+ 
+-    CPU::int_enable();
+-    CPU::halt();
++        db<Thread>(INF) << "There are no runnable threads at the moment!" << endl;
++        db<Thread>(INF) << "Halting the CPU ..." << endl;
+ 
++        CPU::int_enable();
++        CPU::halt();
++    }
+     return 0;
+ }
+ 
+diff --git a/src/abstraction/thread_init.cc b/src/abstraction/thread_init.cc
+index 8a0fb90..0798dfa 100644
+--- a/src/abstraction/thread_init.cc
++++ b/src/abstraction/thread_init.cc
+@@ -17,6 +17,12 @@ void Thread::init()
+     // neither by IDLE (which has a lower priority)
+     if(preemptive)
+         _timer = new (kmalloc(sizeof(Scheduler_Timer))) Scheduler_Timer(QUANTUM, time_slicer);
++
++    // Puts an idling thread on the ready queue.
++    // Its execution will never end, therefore doesnt ever need to be replaced.
++    // Its priority is lower than any other thread, therefore will only
++    // run if no other thread is present.
++    new (kmalloc(sizeof(Thread))) Thread(Thread::Configuration(Thread::READY, Thread::IDLE), &Thread::idle);
+ }
+ 
+ __END_SYS
